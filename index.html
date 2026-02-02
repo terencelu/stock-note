@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>投資追蹤</title>
+    <style>
+        :root {
+            --primary-bg: #f4f7f6;
+            --card-bg: #ffffff;
+            --accent-blue: #007AFF;
+            --accent-red: #FF3B30;
+            --key-bg: #e5e5e5;
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background-color: var(--primary-bg);
+            margin: 0; padding: 10px;
+            display: flex; justify-content: center;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        .container { width: 100%; max-width: 500px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        h2 { text-align: center; margin: 10px 0; font-size: 1.1rem; color: #333; }
+
+        /* 表格樣式 */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { padding: 12px 5px; text-align: center; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .val-cell { background: #f9f9f9; border-radius: 6px; font-weight: 500; min-width: 60px; color: var(--accent-blue); }
+        .total-row { background: #eee; font-weight: bold; }
+
+        /* 按鈕樣式 */
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; margin-top: 10px; color: white; }
+        .save-btn { background: var(--accent-blue); }
+        .clear-btn { background: var(--accent-red); }
+
+        /* 計算機彈窗 (Modal) */
+        #numpadModal {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: flex; flex-direction: column; justify-content: flex-end;
+            transition: bottom 0.3s ease; z-index: 1000;
+        }
+        #numpadModal.active { bottom: 0; }
+
+        .numpad-content {
+            background: #fff; padding: 20px; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+        }
+
+        .numpad-display {
+            font-size: 2rem; text-align: right; padding: 10px;
+            background: #f8f8f8; border-radius: 8px; margin-bottom: 15px; min-height: 1.2em;
+        }
+
+        .numpad-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+        }
+
+        .key {
+            padding: 20px; background: var(--key-bg); border-radius: 10px;
+            font-size: 1.5rem; font-weight: 500; text-align: center; cursor: pointer;
+        }
+        .key:active { background: #ccc; }
+        .key.confirm { background: var(--accent-blue); color: white; grid-column: span 2; }
+        .key.back { background: #d4d4d4; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>收益追蹤</h2>
+    <table>
+        <thead>
+            <tr><th>月份</th><th>配息</th><th>獲利</th><th>小計</th></tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot>
+            <tr class="total-row"><td>總計</td><td id="t-div">0</td><td id="t-prof">0</td><td id="t-all">0</td></tr>
+        </tfoot>
+    </table>
+    <button id="saveBtn" class="btn save-btn">長按儲存</button>
+    <button id="clearBtn" class="btn clear-btn">長按刪除</button>
+</div>
+
+<div id="numpadModal">
+    <div class="numpad-content">
+        <div id="numpadDisplay" class="numpad-display">0</div>
+        <div class="numpad-grid">
+            <div class="key" onclick="press('1')">1</div><div class="key" onclick="press('2')">2</div><div class="key" onclick="press('3')">3</div>
+            <div class="key" onclick="press('4')">4</div><div class="key" onclick="press('5')">5</div><div class="key" onclick="press('6')">6</div>
+            <div class="key" onclick="press('7')">7</div><div class="key" onclick="press('8')">8</div><div class="key" onclick="press('9')">9</div>
+            <div class="key" onclick="press('0')">0</div><div class="key back" onclick="press('C')">C</div><div class="key back" onclick="press('←')">←</div>
+            <div class="key confirm" onclick="confirmValue()">確定</div>
+            <div class="key" onclick="closeModal()">取消</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const state = {};
+    let currentTargetId = null;
+    let tempValue = "";
+
+    // 初始化
+    for (let i = 1; i <= 12; i++) {
+        state[`div-${i}`] = 0; state[`prof-${i}`] = 0;
+        document.getElementById('tableBody').innerHTML += `
+            <tr>
+                <td>${i}月</td>
+                <td class="val-cell" id="cell-div-${i}">0</td>
+                <td class="val-cell" id="cell-prof-${i}">0</td>
+                <td id="sub-${i}" style="font-weight:bold">0</td>
+            </tr>`;
+    }
+
+    function addLongPress(id, callback) {
+        let t;
+        const el = document.getElementById(id);
+        const start = () => t = setTimeout(callback, 600);
+        const stop = () => clearTimeout(t);
+        el.addEventListener('touchstart', start); el.addEventListener('touchend', stop);
+        el.addEventListener('mousedown', start); el.addEventListener('mouseup', stop);
+    }
+
+    // 開啟彈窗
+    function openModal(id) {
+        currentTargetId = id;
+        tempValue = state[id].toString() === "0" ? "" : state[id].toString();
+        updateDisplay();
+        document.getElementById('numpadModal').classList.add('active');
+    }
+
+    function closeModal() { document.getElementById('numpadModal').classList.remove('active'); }
+
+    function press(v) {
+        if (v === 'C') tempValue = "";
+        else if (v === '←') tempValue = tempValue.slice(0, -1);
+        else if (tempValue.length < 9) tempValue += v;
+        updateDisplay();
+    }
+
+    function updateDisplay() {
+        document.getElementById('numpadDisplay').innerText = tempValue === "" ? "0" : tempValue;
+    }
+
+    function confirmValue() {
+        const val = parseInt(tempValue) || 0;
+        state[currentTargetId] = val;
+        document.getElementById(`cell-${currentTargetId}`).innerText = val.toLocaleString();
+        calculate();
+        closeModal();
+    }
+
+    function calculate() {
+        let dSum = 0, pSum = 0;
+        for (let i = 1; i <= 12; i++) {
+            const d = state[`div-${i}`], p = state[`prof-${i}`];
+            document.getElementById(`sub-${i}`).innerText = (d + p).toLocaleString();
+            dSum += d; pSum += p;
+        }
+        document.getElementById('t-div').innerText = dSum.toLocaleString();
+        document.getElementById('t-prof').innerText = pSum.toLocaleString();
+        document.getElementById('t-all').innerText = (dSum + pSum).toLocaleString();
+    }
+
+    // 綁定事件
+    for (let i = 1; i <= 12; i++) {
+        addLongPress(`cell-div-${i}`, () => openModal(`div-${i}`));
+        addLongPress(`cell-prof-${i}`, () => openModal(`prof-${i}`));
+    }
+
+    addLongPress('saveBtn', () => { localStorage.setItem('data_v4', JSON.stringify(state)); alert('已儲存'); });
+    addLongPress('clearBtn', () => { if(confirm('清空？')){ localStorage.clear(); location.reload(); }});
+
+    window.onload = () => {
+        const saved = JSON.parse(localStorage.getItem('data_v4'));
+        if (saved) { 
+            Object.assign(state, saved); 
+            for(let key in state) document.getElementById(`cell-${key}`).innerText = state[key].toLocaleString();
+            calculate(); 
+        }
+    };
+</script>
+</body>
+</html>
