@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>投資追蹤</title>
+    <title>投資收益</title>
     <style>
         :root {
             --primary-bg: #f4f7f6;
             --card-bg: #ffffff;
             --accent-blue: #007AFF;
             --accent-red: #FF3B30;
-            --key-bg: #e5e5e5;
         }
 
         body {
@@ -22,57 +21,48 @@
         }
 
         .container { width: 100%; max-width: 500px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        h2 { text-align: center; margin: 10px 0; font-size: 1.1rem; color: #333; }
+        h2 { text-align: center; margin: 10px 0; color: #333; }
+        
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { padding: 12px 2px; text-align: center; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        
+        .val-cell {
+            background: #f9f9f9;
+            border-radius: 6px;
+            font-weight: 500;
+            color: var(--accent-blue);
+            height: 38px;
+            line-height: 38px;
+            position: relative;
+        }
 
-        /* 表格樣式 */
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th, td { padding: 12px 5px; text-align: center; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-        .val-cell { background: #f9f9f9; border-radius: 6px; font-weight: 500; min-width: 60px; color: var(--accent-blue); }
+        .cell-input {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: 2px solid var(--accent-blue);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 16px;
+            display: none;
+            box-sizing: border-box;
+            background: white;
+            z-index: 10;
+        }
+
         .total-row { background: #eee; font-weight: bold; }
-
-        /* 按鈕樣式 */
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; margin-top: 10px; color: white; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; margin-top: 10px; color: white; cursor: pointer; }
         .save-btn { background: var(--accent-blue); }
         .clear-btn { background: var(--accent-red); }
-
-        /* 計算機彈窗 (Modal) */
-        #numpadModal {
-            position: fixed; bottom: -100%; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); display: flex; flex-direction: column; justify-content: flex-end;
-            transition: bottom 0.3s ease; z-index: 1000;
-        }
-        #numpadModal.active { bottom: 0; }
-
-        .numpad-content {
-            background: #fff; padding: 20px; border-radius: 20px 20px 0 0;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
-        }
-
-        .numpad-display {
-            font-size: 2rem; text-align: right; padding: 10px;
-            background: #f8f8f8; border-radius: 8px; margin-bottom: 15px; min-height: 1.2em;
-        }
-
-        .numpad-grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-        }
-
-        .key {
-            padding: 20px; background: var(--key-bg); border-radius: 10px;
-            font-size: 1.5rem; font-weight: 500; text-align: center; cursor: pointer;
-        }
-        .key:active { background: #ccc; }
-        .key.confirm { background: var(--accent-blue); color: white; grid-column: span 2; }
-        .key.back { background: #d4d4d4; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>收益追蹤</h2>
+    <h2>年度收益</h2>
     <table>
         <thead>
-            <tr><th>月份</th><th>配息</th><th>獲利</th><th>小計</th></tr>
+            <tr><th style="width: 20%;">月份</th><th>配息</th><th>獲利</th><th>小計</th></tr>
         </thead>
         <tbody id="tableBody"></tbody>
         <tfoot>
@@ -80,153 +70,126 @@
         </tfoot>
     </table>
     <button id="saveBtn" class="btn save-btn">長按儲存</button>
-	<div style="margin: 20px 0; border-top: 1px dashed #ddd; width: 100%;"></div>
-    <button id="clearBtn" class="btn clear-btn">長按刪除</button>
-</div>
-
-<div id="numpadModal">
-    <div class="numpad-content">
-        <div id="numpadDisplay" class="numpad-display">0</div>
-        <div class="numpad-grid">
-            <div class="key" data-val="1">1</div><div class="key" data-val="2">2</div><div class="key" data-val="3">3</div>
-            <div class="key" data-val="4">4</div><div class="key" data-val="5">5</div><div class="key" data-val="6">6</div>
-            <div class="key" data-val="7">7</div><div class="key" data-val="8">8</div><div class="key" data-val="9">9</div>
-            <div class="key" data-val="0">0</div><div class="key back" data-val="C">C</div><div class="key back" data-val="←">←</div>
-            <div class="key confirm" id="confirmKey">確定</div>
-            <div class="key" id="cancelKey">取消</div>
-        </div>
-    </div>
+    <button id="clearBtn" class="btn clear-btn">長按清空</button>
 </div>
 
 <script>
-    const state = {};
-    let currentTargetId = null;
-    let tempValue = "";
-    let isModalLocked = true; // 鎖定狀態防止穿透
+    // 1. 初始化資料結構：List<List>
+    // 結構：[[div, prof], [div, prof], ...] 共 12 個子陣列
+    let monthlyData = Array.from({ length: 12 }, () => [0, 0]);
 
-    // 1. 初始化表格 (保持不變)
     const tableBody = document.getElementById('tableBody');
-    for (let i = 1; i <= 12; i++) {
-        state[`div-${i}`] = 0; state[`prof-${i}`] = 0;
+
+    // 2. 生成表格
+    for (let i = 0; i < 12; i++) {
         tableBody.innerHTML += `
             <tr>
-                <td>${i}月</td>
-                <td class="val-cell" id="cell-div-${i}">0</td>
-                <td class="val-cell" id="cell-prof-${i}">0</td>
+                <td>${i + 1}月</td>
+                <td class="val-cell" data-m="${i}" data-type="0">
+                    <span class="display-val">0</span>
+                    <input type="text" inputmode="decimal" class="cell-input">
+                </td>
+                <td class="val-cell" data-m="${i}" data-type="1">
+                    <span class="display-val">0</span>
+                    <input type="text" inputmode="decimal" class="cell-input">
+                </td>
                 <td id="sub-${i}" style="font-weight:bold">0</td>
             </tr>`;
     }
 
-    // 2. 長按邏輯優化
-    function addLongPress(id, callback) {
-        let t;
-        const el = document.getElementById(id);
-        const start = (e) => {
-            t = setTimeout(() => {
-                if (e.cancelable) e.preventDefault();
-                callback();
-            }, 600);
-        };
-        const stop = () => clearTimeout(t);
-        el.addEventListener('touchstart', start, { passive: false });
-        el.addEventListener('touchend', stop);
-        el.addEventListener('mousedown', start);
-        el.addEventListener('mouseup', stop);
-        el.addEventListener('mouseleave', stop);
-    }
-
-    // 3. 計算機按鍵核心邏輯
-    function handleKeyPress(v) {
-        if (isModalLocked) return; // 鎖定中不反應
-
-        if (v === 'C') tempValue = "";
-        else if (v === '←') tempValue = tempValue.slice(0, -1);
-        else if (tempValue.length < 10) {
-            // 防止開頭多個 0
-            if (tempValue === "" && v === "0") return;
-            tempValue += v;
-        }
-        updateDisplay();
-    }
-
-    function updateDisplay() {
-        document.getElementById('numpadDisplay').innerText = tempValue === "" ? "0" : tempValue;
-    }
-
-    // 4. 開啟/關閉 Modal
-    function openModal(id) {
-        currentTargetId = id;
-        tempValue = state[id] === 0 ? "" : state[id].toString();
-        updateDisplay();
+    // 3. 格式檢查與更新
+    function updateData(monthIdx, typeIdx, value) {
+        // 格式檢查：只允許數字與小數點
+        let cleanValue = value.replace(/[^0-9.]/g, '');
+        const num = parseFloat(cleanValue) || 0;
         
-        document.getElementById('numpadModal').classList.add('active');
-        isModalLocked = true;
-        // 0.2 秒後解除鎖定，避免長按結束時的殘餘觸控穿透
-        setTimeout(() => { isModalLocked = false; }, 200);
+        // 更新陣列
+        monthlyData[monthIdx][typeIdx] = num;
+        
+        // 更新顯示
+        const cell = document.querySelectorAll(`tr`)[monthIdx + 1].querySelectorAll('.val-cell')[typeIdx];
+        cell.querySelector('.display-val').innerText = num.toLocaleString();
+        
+        calculateTotals();
     }
 
-    function closeModal() {
-        document.getElementById('numpadModal').classList.remove('active');
-        isModalLocked = true;
-    }
-
-    function confirmValue() {
-        if (isModalLocked) return;
-        const val = parseInt(tempValue) || 0;
-        state[currentTargetId] = val;
-        document.getElementById(`cell-${currentTargetId}`).innerText = val.toLocaleString();
-        calculate();
-        closeModal();
-    }
-
-    function calculate() {
+    function calculateTotals() {
         let dSum = 0, pSum = 0;
-        for (let i = 1; i <= 12; i++) {
-            const d = state[`div-${i}`], p = state[`prof-${i}`];
-            document.getElementById(`sub-${i}`).innerText = (d + p).toLocaleString();
-            dSum += d; pSum += p;
-        }
+        monthlyData.forEach((row, i) => {
+            const rowTotal = row[0] + row[1];
+            document.getElementById(`sub-${i}`).innerText = rowTotal.toLocaleString();
+            dSum += row[0];
+            pSum += row[1];
+        });
         document.getElementById('t-div').innerText = dSum.toLocaleString();
         document.getElementById('t-prof').innerText = pSum.toLocaleString();
         document.getElementById('t-all').innerText = (dSum + pSum).toLocaleString();
     }
 
-    // 5. 事件綁定：使用 pointerdown 支援所有裝置
-    document.querySelectorAll('.key[data-val]').forEach(el => {
-        el.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            handleKeyPress(el.getAttribute('data-val'));
+    // 4. 事件綁定 (長按邏輯)
+    document.querySelectorAll('.val-cell').forEach(cell => {
+        let t;
+        const input = cell.querySelector('.cell-input');
+        const mIdx = parseInt(cell.dataset.m);
+        const tIdx = parseInt(cell.dataset.type);
+
+        const start = () => t = setTimeout(() => {
+            input.style.display = 'block';
+            input.value = monthlyData[mIdx][tIdx] || "";
+            input.focus();
+            input.select();
+        }, 600);
+
+        const stop = () => clearTimeout(t);
+
+        cell.addEventListener('touchstart', start);
+        cell.addEventListener('touchend', stop);
+        cell.addEventListener('mousedown', start);
+        cell.addEventListener('mouseup', stop);
+
+        input.addEventListener('blur', () => {
+            updateData(mIdx, tIdx, input.value);
+            input.style.display = 'none';
+        });
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') input.blur();
         });
     });
 
-    document.getElementById('confirmKey').addEventListener('pointerdown', confirmValue);
-    document.getElementById('cancelKey').addEventListener('pointerdown', closeModal);
+    // 5. 儲存與載入 (Local Storage 直接存陣列)
+    const handleLongPressBtn = (id, action) => {
+        let t;
+        const el = document.getElementById(id);
+        el.addEventListener('touchstart', () => t = setTimeout(action, 800));
+        el.addEventListener('touchend', () => clearTimeout(t));
+        el.addEventListener('mousedown', () => t = setTimeout(action, 800));
+        el.addEventListener('mouseup', () => clearTimeout(t));
+    };
 
-    // 綁定表格
-    for (let i = 1; i <= 12; i++) {
-        addLongPress(`cell-div-${i}`, () => openModal(`div-${i}`));
-        addLongPress(`cell-prof-${i}`, () => openModal(`prof-${i}`));
-    }
-
-    // 儲存與載入
-    addLongPress('saveBtn', () => { 
-        localStorage.setItem('data_v6', JSON.stringify(state)); 
-        alert('✅ 已儲存'); 
+    handleLongPressBtn('saveBtn', () => {
+        localStorage.setItem('invest_list_data', JSON.stringify(monthlyData));
+        alert('✅ 資料(陣列格式)已儲存');
     });
 
-    addLongPress('clearBtn', () => { 
-        if(confirm('確定清空？')) { localStorage.clear(); location.reload(); }
+    handleLongPressBtn('clearBtn', () => {
+        if(confirm('確定清空？')) {
+            localStorage.removeItem('invest_list_data');
+            location.reload();
+        }
     });
 
     window.onload = () => {
-        const saved = JSON.parse(localStorage.getItem('data_v6'));
-        if (saved) { 
-            Object.assign(state, saved); 
-            for(let key in state) {
-                const el = document.getElementById(`cell-${key}`);
-                if (el) el.innerText = state[key].toLocaleString();
-            }
-            calculate(); 
+        const saved = localStorage.getItem('invest_list_data');
+        if (saved) {
+            monthlyData = JSON.parse(saved);
+            // 重新渲染畫面
+            monthlyData.forEach((row, mIdx) => {
+                const cells = document.querySelectorAll(`tr`)[mIdx + 1].querySelectorAll('.val-cell');
+                cells[0].querySelector('.display-val').innerText = row[0].toLocaleString();
+                cells[1].querySelector('.display-val').innerText = row[1].toLocaleString();
+            });
+            calculateTotals();
         }
     };
 </script>
