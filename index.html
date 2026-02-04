@@ -67,9 +67,11 @@
         <tbody id="tableBody"></tbody>
         <tfoot>
             <tr class="total-row"><td>總計</td><td id="t-div">0</td><td id="t-prof">0</td><td id="t-all">0</td></tr>
+            <tr class="avg-row"><td>月均</td><td id="avg-div">0</td><td id="avg-prof">0</td><td id="avg-all">0</td></tr>
         </tfoot>
     </table>
     <button id="saveBtn" class="btn save-btn">長按儲存</button>
+    <div style="margin: 20px 0; border-top: 1px dashed #fed9c8; width: 100%;"></div>
     <button id="clearBtn" class="btn clear-btn">長按清空</button>
 </div>
 
@@ -124,6 +126,9 @@
         document.getElementById('t-div').innerText = dSum.toLocaleString();
         document.getElementById('t-prof').innerText = pSum.toLocaleString();
         document.getElementById('t-all').innerText = (dSum + pSum).toLocaleString();
+        document.getElementById('avg-div').innerText = (dSum/12).toLocaleString();
+        document.getElementById('avg-prof').innerText = (pSum/12).toLocaleString();
+        document.getElementById('avg-all').innerText = ((dSum + pSum)/12).toLocaleString();
     }
 
     // 4. 事件綁定 (長按邏輯)
