@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>投資收益</title>
+    <title>投資收益管理</title>
     <style>
         :root {
             --primary-bg: #f4f7f6;
             --card-bg: #ffffff;
             --accent-blue: #007AFF;
             --accent-red: #FF3B30;
+            --accent-green: #34C759;
         }
 
         body {
@@ -27,39 +28,74 @@
         th, td { padding: 12px 2px; text-align: center; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
         
         .val-cell {
-            background: #f9f9f9;
-            border-radius: 6px;
-            font-weight: 500;
-            color: var(--accent-blue);
-            height: 38px;
-            line-height: 38px;
-            position: relative;
-        }
-
-        .cell-input {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            border: 2px solid var(--accent-blue);
-            border-radius: 6px;
-            text-align: center;
-            font-size: 16px;
-            display: none;
-            box-sizing: border-box;
-            background: white;
-            z-index: 10;
+            background: #f9f9f9; border-radius: 6px; font-weight: 500;
+            color: var(--accent-blue); height: 38px; line-height: 38px; cursor: pointer;
         }
 
         .total-row { background: #eee; font-weight: bold; }
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; margin-top: 10px; color: white; cursor: pointer; }
+        
+        /* --- 按鈕視覺效果優化 --- */
+        .btn { 
+            width: 100%; padding: 14px; border: none; border-radius: 10px; 
+            font-size: 16px; font-weight: 600; margin-top: 10px; color: white; 
+            cursor: pointer; position: relative; overflow: hidden;
+            transition: transform 0.1s; 
+        }
+        
+        /* 按下時縮小 */
+        .btn:active { transform: scale(0.97); }
+
+        /* 進度條底色 */
+        .btn::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 0%; height: 5px;
+            background: rgba(255, 255, 255, 0.4);
+            transition: width 0.8s linear; /* 與 800ms 長按同步 */
+        }
+
+        /* 正在長按時跑進度條 */
+        .btn.is-pressing::after { width: 100%; }
+
+        /* 儲存成功閃爍 */
+        @keyframes success-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(52, 199, 89, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); }
+        }
+        .success-anim { animation: success-pulse 0.6s ease-out; }
+
         .save-btn { background: var(--accent-blue); }
         .clear-btn { background: var(--accent-red); }
+
+        /* 彈窗樣式 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal {
+            background: white; width: 95%; max-width: 450px; border-radius: 16px;
+            padding: 20px; box-sizing: border-box; max-height: 80vh; overflow-y: auto;
+        }
+        .modal-table { width: 100%; }
+        .modal-table input { 
+            width: 90%; padding: 10px 5px; border: 1px solid #eee; 
+            border-radius: 6px; font-size: 15px; background: #fafafa;
+        }
+        .modal-table input:focus { border-color: var(--accent-blue); outline: none; background: #fff; }
+        
+        .del-btn { background: #ddd; color: #666; border: none; padding: 8px; border-radius: 6px; font-size: 12px; width: 100%; }
+        .del-btn:active { background: var(--accent-red); color: white; }
+        
+        .modal-footer { display: flex; gap: 10px; margin-top: 20px; position: sticky; bottom: 0; background: white; padding-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>年度收益</h2>
+    <h2 id="yearTitle">年度收益</h2>
     <table>
         <thead>
             <tr><th style="width: 20%;">月份</th><th>配息</th><th>獲利</th><th>小計</th></tr>
@@ -71,129 +107,171 @@
         </tfoot>
     </table>
     <button id="saveBtn" class="btn save-btn">長按儲存</button>
-    <div style="margin: 20px 0; border-top: 1px dashed #fed9c8; width: 100%;"></div>
-    <button id="clearBtn" class="btn clear-btn">長按清空</button>
+    <div style="margin: 20px 0; border-top: 1px dashed #ddd; width: 100%;"></div>
+    <button id="clearBtn" class="btn clear-btn" style="opacity:0.6">長按清空</button>
+</div>
+
+<div id="modalOverlay" class="modal-overlay">
+    <div class="modal">
+        <h3 id="modalTitle">編輯項目</h3>
+        <table class="modal-table">
+            <thead>
+                <tr><th style="width:45%">項目</th><th style="width:35%">金額</th><th style="width:20%">操作</th></tr>
+            </thead>
+            <tbody id="modalBody"></tbody>
+        </table>
+        <div class="modal-footer">
+            <button class="btn" style="background:#888; margin-top:0" onclick="closeModal()">取消</button>
+            <button class="btn" style="background:var(--accent-blue); margin-top:0" onclick="submitModal()">修改</button>
+        </div>
+    </div>
 </div>
 
 <script>
-    // 1. 初始化資料結構：List<List>
-    // 結構：[[div, prof], [div, prof], ...] 共 12 個子陣列
-    let monthlyData = Array.from({ length: 12 }, () => [0, 0]);
+    let monthlyData = Array.from({ length: 12 }, () => ({
+        divItems: [{name: "", val: ""}],
+        profItems: [{name: "", val: ""}]
+    }));
+
+    let tempListData = [];
+    let currentEditing = { mIdx: 0, type: '' };
 
     const tableBody = document.getElementById('tableBody');
-
-    // 2. 生成表格
     for (let i = 0; i < 12; i++) {
         tableBody.innerHTML += `
             <tr>
                 <td>${i + 1}月</td>
-                <td class="val-cell" data-m="${i}" data-type="0">
-                    <span class="display-val">0</span>
-                    <input type="text" inputmode="decimal" class="cell-input">
-                </td>
-                <td class="val-cell" data-m="${i}" data-type="1">
-                    <span class="display-val">0</span>
-                    <input type="text" inputmode="decimal" class="cell-input">
-                </td>
+                <td class="val-cell" onclick="openModal(${i}, 'divItems')"><span id="display-${i}-div">0</span></td>
+                <td class="val-cell" onclick="openModal(${i}, 'profItems')"><span id="display-${i}-prof">0</span></td>
                 <td id="sub-${i}" style="font-weight:bold">0</td>
             </tr>`;
     }
 
-    // 3. 格式檢查與更新
-    function updateData(monthIdx, typeIdx, value) {
-        // 格式檢查：只允許數字與小數點
-        let cleanValue = value.replace(/[^0-9.]/g, '');
-        const num = parseFloat(cleanValue) || 0;
-        
-        // 更新陣列
-        monthlyData[monthIdx][typeIdx] = num;
-        
-        // 更新顯示
-        const cell = document.querySelectorAll(`tr`)[monthIdx + 1].querySelectorAll('.val-cell')[typeIdx];
-        cell.querySelector('.display-val').innerText = num.toLocaleString();
-        
+    function openModal(mIdx, type) {
+        currentEditing = { mIdx, type };
+        document.getElementById('modalTitle').innerText = `${mIdx + 1}月 - ${type === 'divItems' ? '配息' : '獲利'}`;
+        tempListData = JSON.parse(JSON.stringify(monthlyData[mIdx][type]));
+        if (tempListData.length === 0) tempListData.push({name: "", val: ""});
+        renderModalItems();
+        document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function closeModal() { 
+        document.getElementById('modalOverlay').style.display = 'none'; 
+        tempListData = []; 
+    }
+
+    function renderModalItems() {
+        const container = document.getElementById('modalBody');
+        container.innerHTML = '';
+        tempListData.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" placeholder="項目" value="${item.name}" oninput="updateTempItem(${idx}, 'name', this.value)"></td>
+                <td><input type="text" placeholder="0" value="${item.val}" oninput="updateTempItem(${idx}, 'val', this.value)"></td>
+                <td><button class="del-btn" id="del-${idx}">長按刪</button></td>
+            `;
+            container.appendChild(tr);
+            handleLongPress(`del-${idx}`, () => {
+                tempListData.splice(idx, 1);
+                if(tempListData.length === 0) tempListData.push({name: "", val: ""});
+                renderModalItems();
+            });
+        });
+    }
+
+    function updateTempItem(idx, field, value) {
+        tempListData[idx][field] = value;
+        const isLast = idx === tempListData.length - 1;
+        const hasContent = tempListData[idx].name !== "" || tempListData[idx].val !== "";
+        if (isLast && hasContent) {
+            tempListData.push({name: "", val: ""});
+            renderModalItems();
+            const inputs = document.querySelectorAll(`.modal-table tr:nth-child(${idx+1}) input`);
+            const target = field === 'name' ? inputs[0] : inputs[1];
+            target.focus();
+            const len = target.value.length;
+            target.setSelectionRange(len, len);
+        }
+    }
+
+    function submitModal() {
+        const cleaned = tempListData.filter((item, i) => 
+            item.name !== "" || item.val !== "" || i === tempListData.length - 1
+        );
+        monthlyData[currentEditing.mIdx][currentEditing.type] = cleaned;
         calculateTotals();
+        closeModal();
     }
 
     function calculateTotals() {
-        let dSum = 0, pSum = 0;
-        monthlyData.forEach((row, i) => {
-            const rowTotal = row[0] + row[1];
-            document.getElementById(`sub-${i}`).innerText = rowTotal.toLocaleString();
-            dSum += row[0];
-            pSum += row[1];
+        let dSumTotal = 0, pSumTotal = 0;
+        monthlyData.forEach((month, i) => {
+            const dSum = month.divItems.reduce((a, b) => a + (parseFloat(b.val) || 0), 0);
+            const pSum = month.profItems.reduce((a, b) => a + (parseFloat(b.val) || 0), 0);
+            document.getElementById(`display-${i}-div`).innerText = dSum.toLocaleString();
+            document.getElementById(`display-${i}-prof`).innerText = pSum.toLocaleString();
+            document.getElementById(`sub-${i}`).innerText = (dSum + pSum).toLocaleString();
+            dSumTotal += dSum; pSumTotal += pSum;
         });
-        document.getElementById('t-div').innerText = dSum.toLocaleString();
-        document.getElementById('t-prof').innerText = pSum.toLocaleString();
-        document.getElementById('t-all').innerText = (dSum + pSum).toLocaleString();
-        document.getElementById('avg-div').innerText = (dSum/12).toLocaleString();
-        document.getElementById('avg-prof').innerText = (pSum/12).toLocaleString();
-        document.getElementById('avg-all').innerText = ((dSum + pSum)/12).toLocaleString();
+        document.getElementById('t-div').innerText = dSumTotal.toLocaleString();
+        document.getElementById('t-prof').innerText = pSumTotal.toLocaleString();
+        document.getElementById('t-all').innerText = (dSumTotal + pSumTotal).toLocaleString();
+        document.getElementById('avg-div').innerText = Math.floor(dSumTotal/12).toLocaleString();
+        document.getElementById('avg-prof').innerText = Math.floor(pSumTotal/12).toLocaleString();
+        document.getElementById('avg-all').innerText = Math.floor((dSumTotal + pSumTotal)/12).toLocaleString();
     }
 
-    // 4. 事件綁定 (長按邏輯)
-    document.querySelectorAll('.val-cell').forEach(cell => {
-        let t;
-        const input = cell.querySelector('.cell-input');
-        const mIdx = parseInt(cell.dataset.m);
-        const tIdx = parseInt(cell.dataset.type);
-
-        const start = () => t = setTimeout(() => {
-            input.style.display = 'block';
-            input.value = monthlyData[mIdx][tIdx] || "";
-            input.focus();
-            input.select();
-        }, 600);
-
-        const stop = () => clearTimeout(t);
-
-        cell.addEventListener('touchstart', start);
-        cell.addEventListener('touchend', stop);
-        cell.addEventListener('mousedown', start);
-        cell.addEventListener('mouseup', stop);
-
-        input.addEventListener('blur', () => {
-            updateData(mIdx, tIdx, input.value);
-            input.style.display = 'none';
-        });
-
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') input.blur();
-        });
-    });
-
-    // 5. 儲存與載入 (Local Storage 直接存陣列)
-    const handleLongPressBtn = (id, action) => {
+    // --- 優化後的長按功能 ---
+    function handleLongPress(id, action) {
         let t;
         const el = document.getElementById(id);
-        el.addEventListener('touchstart', () => t = setTimeout(action, 800));
-        el.addEventListener('touchend', () => clearTimeout(t));
-        el.addEventListener('mousedown', () => t = setTimeout(action, 800));
-        el.addEventListener('mouseup', () => clearTimeout(t));
-    };
+        if(!el) return;
 
-    handleLongPressBtn('saveBtn', () => {
-        localStorage.setItem('invest_list_data', JSON.stringify(monthlyData));
-        alert('✅ 資料(陣列格式)已儲存');
+        const start = (e) => {
+            // 排除非左鍵點擊
+            if(e.type === 'mousedown' && e.button !== 0) return;
+            
+            el.classList.add('is-pressing'); // 顯示進度條
+            t = setTimeout(() => {
+                el.classList.remove('is-pressing');
+                // 儲存按鈕特有的成功動畫
+                if(id === 'saveBtn') {
+                    el.classList.add('success-anim');
+                    setTimeout(() => el.classList.remove('success-anim'), 600);
+                }
+                action();
+            }, 800);
+        };
+
+        const stop = () => {
+            clearTimeout(t);
+            el.classList.remove('is-pressing'); // 移除進度條
+        };
+
+        el.addEventListener('touchstart', start, {passive: true});
+        el.addEventListener('touchend', stop);
+        el.addEventListener('mousedown', start);
+        el.addEventListener('mouseup', stop);
+        el.addEventListener('mouseleave', stop); // 滑鼠移開也要取消
+    }
+
+    handleLongPress('saveBtn', () => {
+        localStorage.setItem('stock_data', JSON.stringify(monthlyData));
+        alert('✅ 資料已儲存');
     });
 
-    handleLongPressBtn('clearBtn', () => {
-        if(confirm('確定清空？')) {
-            localStorage.removeItem('invest_list_data');
+    handleLongPress('clearBtn', () => {
+        if(confirm('確定清空所有資料？')) {
+            localStorage.removeItem('stock_data');
             location.reload();
         }
     });
 
     window.onload = () => {
-        const saved = localStorage.getItem('invest_list_data');
+        const saved = localStorage.getItem('stock_data');
         if (saved) {
             monthlyData = JSON.parse(saved);
-            // 重新渲染畫面
-            monthlyData.forEach((row, mIdx) => {
-                const cells = document.querySelectorAll(`tr`)[mIdx + 1].querySelectorAll('.val-cell');
-                cells[0].querySelector('.display-val').innerText = row[0].toLocaleString();
-                cells[1].querySelector('.display-val').innerText = row[1].toLocaleString();
-            });
             calculateTotals();
         }
     };
