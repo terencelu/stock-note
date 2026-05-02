@@ -169,10 +169,12 @@
             tr.innerHTML = `
                 <td><input type="text" placeholder="項目" value="${item.name}" 
                     oninput="tempListData[${idx}].name = this.value" 
-                    onblur="checkAndAddRow(${idx})"></td>
+                    onblur="checkAndAddRow_Name(${idx})"
+                    onkeydown="if(event.key === 'Enter') checkAndAddRow_Name(${idx})"></td>
                 <td><input type="text" placeholder="0" value="${item.val}" 
                     oninput="tempListData[${idx}].val = this.value" 
-                    onblur="checkAndAddRow(${idx})"></td>
+                    onblur="checkAndAddRow_Value(${idx})"
+                    onkeydown="if(event.key === 'Enter') checkAndAddRow_Value(${idx})"></td>
                 <td><button class="del-btn" id="del-${idx}">長按刪</button></td>
             `;
             container.appendChild(tr);
@@ -184,7 +186,7 @@
         });
     }
     // 2. 新增檢查邏輯：只有在最後一行有內容且離開焦點時，才新增下一行
-    function checkAndAddRow(idx) {
+    function checkAndAddRow_Name(idx) {
         const isLast = idx === tempListData.length - 1;
         const hasContent = tempListData[idx].name !== "" || tempListData[idx].val !== "";
         
@@ -192,7 +194,21 @@
             tempListData.push({name: "", val: ""});
             renderModalItems();
             
-            // 自動聚焦到新行
+            // 自動聚焦到舊行的Value
+            const inputs = document.querySelectorAll('.modal-table tr');
+            const lastRowInputs = inputs[idx + 1].querySelectorAll('input');
+            lastRowInputs[1].focus(); 
+        }
+    }
+    function checkAndAddRow_Value(idx) {
+        const isLast = idx === tempListData.length - 1;
+        const hasContent = tempListData[idx].name !== "" || tempListData[idx].val !== "";
+        
+        if (isLast && hasContent) {
+            tempListData.push({name: "", val: ""});
+            renderModalItems();
+            
+            // 自動聚焦到新行的Name
             const inputs = document.querySelectorAll('.modal-table tr');
             const lastRowInputs = inputs[inputs.length - 1].querySelectorAll('input');
             lastRowInputs[0].focus(); 
