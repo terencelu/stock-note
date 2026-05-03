@@ -185,6 +185,7 @@
             });
         });
     }
+
     // 2. 新增檢查邏輯：只有在最後一行有內容且離開焦點時，才新增下一行
     function checkAndAddRow_Name(idx) {
         const isLast = idx === tempListData.length - 1;
@@ -208,6 +209,12 @@
             tempListData.push({name: "", val: ""});
             renderModalItems();
             
+            // 自動聚焦到新行的Name
+            const inputs = document.querySelectorAll('.modal-table tr');
+            const lastRowInputs = inputs[inputs.length - 1].querySelectorAll('input');
+            lastRowInputs[0].focus(); 
+        }
+        else{
             // 自動聚焦到新行的Name
             const inputs = document.querySelectorAll('.modal-table tr');
             const lastRowInputs = inputs[inputs.length - 1].querySelectorAll('input');
