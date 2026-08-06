@@ -11,6 +11,7 @@
             --accent-blue: #007AFF;
             --accent-red: #FF3B30;
             --accent-green: #34C759;
+            --accent-orange: #FF9500;
         }
 
         body {
@@ -21,9 +22,68 @@
             user-select: none; -webkit-user-select: none;
         }
 
-        .container { width: 100%; max-width: 500px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .container { width: 100%; max-width: 500px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); box-sizing: border-box; }
         h2 { text-align: center; margin: 10px 0; color: #333; }
         
+        /* --- 分頁列 (Tabs) 樣式 --- */
+        .tabs-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #eee;
+            scrollbar-width: none;
+        }
+        .tabs-container::-webkit-scrollbar { display: none; }
+
+        .tab-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #e9ecef;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .tab-item.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+        
+        /* Tag 重新命名小按鈕 */
+        .rename-tab-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            opacity: 0.6;
+            padding: 2px;
+            border-radius: 50%;
+            transition: opacity 0.2s;
+        }
+        .rename-tab-btn:hover {
+            opacity: 1;
+        }
+
+        .add-tab-btn {
+            padding: 6px 12px;
+            background: #fff;
+            border: 1px dashed var(--accent-blue);
+            color: var(--accent-blue);
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         th, td { padding: 12px 2px; text-align: center; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
         
@@ -42,23 +102,19 @@
             transition: transform 0.1s; 
         }
         
-        /* 按下時縮小 */
         .btn:active { transform: scale(0.97); }
 
-        /* 進度條底色 */
         .btn::after {
             content: '';
             position: absolute;
             bottom: 0; left: 0;
             width: 0%; height: 5px;
             background: rgba(255, 255, 255, 0.4);
-            transition: width 0.8s linear; /* 與 800ms 長按同步 */
+            transition: width 0.8s linear;
         }
 
-        /* 正在長按時跑進度條 */
         .btn.is-pressing::after { width: 100%; }
 
-        /* 儲存成功閃爍 */
         @keyframes success-pulse {
             0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); }
             70% { box-shadow: 0 0 0 15px rgba(52, 199, 89, 0); }
@@ -68,6 +124,7 @@
 
         .save-btn { background: var(--accent-blue); }
         .clear-btn { background: var(--accent-red); }
+        .clear-page-btn { background: var(--accent-orange); }
 
         /* 彈窗樣式 */
         .modal-overlay {
@@ -95,7 +152,11 @@
 <body>
 
 <div class="container">
-    <h2 id="yearTitle">年度收益</h2>
+    <h2 id="yearTitle">年度收益管理</h2>
+    
+    <!-- 分頁列 (Tabs) -->
+    <div class="tabs-container" id="tabsContainer"></div>
+
     <table>
         <thead>
             <tr><th style="width: 20%;">月份</th><th>配息</th><th>獲利</th><th>小計</th></tr>
@@ -108,7 +169,8 @@
     </table>
     <button id="saveBtn" class="btn save-btn">長按儲存</button>
     <div style="margin: 20px 0; border-top: 1px dashed #ddd; width: 100%;"></div>
-    <button id="clearBtn" class="btn clear-btn" style="opacity:0.6">長按清空</button>
+    <button id="clearPageBtn" class="btn clear-page-btn" style="opacity:0.8">長按刪除當前Tag與頁面</button>
+    <button id="clearBtn" class="btn clear-btn" style="opacity:0.6">長按清空全部資料</button>
 </div>
 
 <div id="modalOverlay" class="modal-overlay">
@@ -128,14 +190,30 @@
 </div>
 
 <script>
-    let monthlyData = Array.from({ length: 12 }, () => ({
-        divItems: [{name: "", val: ""}],
-        profItems: [{name: "", val: ""}]
-    }));
+    const STORAGE_KEY = 'stock_data';
+
+    function createEmptyMonthlyData() {
+        return Array.from({ length: 12 }, () => ({
+            divItems: [{name: "", val: ""}],
+            profItems: [{name: "", val: ""}]
+        }));
+    }
+
+    // 帶有版本與多 Tag 的物件結構
+    let new_data = {
+        information: { 
+            version: "v2",
+            activeTag: "預設帳戶"
+        },
+        data: {
+            "預設帳戶": createEmptyMonthlyData()
+        }
+    };
 
     let tempListData = [];
     let currentEditing = { mIdx: 0, type: '' };
 
+    // 初始化表格 DOM
     const tableBody = document.getElementById('tableBody');
     for (let i = 0; i < 12; i++) {
         tableBody.innerHTML += `
@@ -147,10 +225,158 @@
             </tr>`;
     }
 
+    // 取得當前 Active Tag 的資料陣列
+    function getCurrentTagData() {
+        const activeTag = new_data.information.activeTag || '預設帳戶';
+        if (!new_data.data[activeTag]) {
+            new_data.data[activeTag] = createEmptyMonthlyData();
+        }
+        return new_data.data[activeTag];
+    }
+
+    // 載入與自動相容舊版格式
+    function loadAndMigrateData() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return;
+
+        try {
+            const parsed = JSON.parse(saved);
+
+            if (Array.isArray(parsed)) {
+                console.log('檢測到舊版資料，自動升級中...');
+                new_data.information.version = "v2";
+                new_data.information.activeTag = "預設帳戶";
+                new_data.data["預設帳戶"] = parsed;
+                saveDataToLocalStorage();
+                alert('檢測到舊版資料，已轉移成功');
+            } 
+            else if (parsed && parsed.information) {
+                new_data = parsed;
+            }
+        } catch (e) {
+            console.error('資料解析失敗：', e);
+        }
+    }
+
+    // 渲染分頁列 (Tabs)
+    function renderTabs() {
+        const container = document.getElementById('tabsContainer');
+        container.innerHTML = '';
+
+        const activeTag = new_data.information.activeTag;
+
+        Object.keys(new_data.data).forEach((tagName) => {
+            const tabBtn = document.createElement('div');
+            tabBtn.className = `tab-item ${tagName === activeTag ? 'active' : ''}`;
+            tabBtn.id = `tab-${tagName}`;
+            
+            // 標題文字與點擊事件
+            const titleSpan = document.createElement('span');
+            titleSpan.innerText = tagName;
+            titleSpan.onclick = () => switchTag(tagName);
+
+            // 重新命名的✏️小圖示
+            const renameIcon = document.createElement('span');
+            renameIcon.className = 'rename-tab-btn';
+            renameIcon.innerHTML = '✏️';
+            renameIcon.title = '重新命名';
+            renameIcon.onclick = (e) => {
+                e.stopPropagation(); // 阻止觸發切換頁籤
+                renameTag(tagName);
+            };
+
+            tabBtn.appendChild(titleSpan);
+            tabBtn.appendChild(renameIcon);
+            container.appendChild(tabBtn);
+
+            handleLongPress(`tab-${tagName}`, () => {
+                manageTabOptions(tagName);
+            });
+        });
+
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-tab-btn';
+        addBtn.innerText = '+ 新增分頁';
+        addBtn.onclick = addNewTagPrompt;
+        container.appendChild(addBtn);
+    }
+
+    function switchTag(tagName) {
+        new_data.information.activeTag = tagName;
+        saveDataToLocalStorage();
+        renderTabs();
+        calculateTotals();
+    }
+
+    // 重新命名 Tag 的核心 Function
+    function renameTag(oldName) {
+        const newName = prompt('請輸入新的分頁名稱：', oldName);
+        if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
+
+        const trimmed = newName.trim();
+        if (new_data.data[trimmed]) {
+            alert('已存在同名的分頁！');
+            return;
+        }
+
+        // 轉移資料給新名稱 key，並刪除舊 key
+        new_data.data[trimmed] = new_data.data[oldName];
+        delete new_data.data[oldName];
+
+        // 若當前選中的是該 Tag，一併更新 activeTag
+        if (new_data.information.activeTag === oldName) {
+            new_data.information.activeTag = trimmed;
+        }
+
+        saveDataToLocalStorage();
+        renderTabs();
+    }
+
+    function addNewTagPrompt() {
+        const tagName = prompt('請輸入新分頁名稱：');
+        if (tagName && tagName.trim() !== '') {
+            const trimmed = tagName.trim();
+            if (new_data.data[trimmed]) {
+                alert('已存在同名的分頁！');
+                return;
+            }
+            new_data.data[trimmed] = createEmptyMonthlyData();
+            switchTag(trimmed);
+        }
+    }
+
+    function manageTabOptions(tagName) {
+        const action = prompt(`管理分頁【${tagName}】:\n1. 重新命名\n2. 刪除分頁\n(請輸入數字 1 或 2)`);
+        
+        if (action === '1') {
+            renameTag(tagName);
+        } else if (action === '2') {
+            deleteCurrentTag(tagName);
+        }
+    }
+
+    // 刪除特定 Tag 與數據的核心 logic
+    function deleteCurrentTag(tagName) {
+        const keys = Object.keys(new_data.data);
+        if (keys.length <= 1) {
+            new_data.data[tagName] = createEmptyMonthlyData();
+            alert(`【${tagName}】是唯一的頁籤，已為您重置清空該頁內容！`);
+        } else {
+            delete new_data.data[tagName];
+            if (new_data.information.activeTag === tagName) {
+                new_data.information.activeTag = Object.keys(new_data.data)[0];
+            }
+        }
+        saveDataToLocalStorage();
+        renderTabs();
+        calculateTotals();
+    }
+
     function openModal(mIdx, type) {
         currentEditing = { mIdx, type };
         document.getElementById('modalTitle').innerText = `${mIdx + 1}月 - ${type === 'divItems' ? '配息' : '獲利'}`;
-        tempListData = JSON.parse(JSON.stringify(monthlyData[mIdx][type]));
+        const currentData = getCurrentTagData();
+        tempListData = JSON.parse(JSON.stringify(currentData[mIdx][type]));
         if (tempListData.length === 0) tempListData.push({name: "", val: ""});
         renderModalItems();
         document.getElementById('modalOverlay').style.display = 'flex';
@@ -186,54 +412,31 @@
         });
     }
 
-    // 2. 新增檢查邏輯：只有在最後一行有內容且離開焦點時，才新增下一行
     function checkAndAddRow_Name(idx) {
         const isLast = idx === tempListData.length - 1;
         const hasContent = tempListData[idx].name !== "" || tempListData[idx].val !== "";
-        
         if (isLast && hasContent) {
             tempListData.push({name: "", val: ""});
             renderModalItems();
-            
-            // 自動聚焦到舊行的Value
             const inputs = document.querySelectorAll('.modal-table tr');
             const lastRowInputs = inputs[idx + 1].querySelectorAll('input');
             lastRowInputs[1].focus(); 
         }
     }
+
     function checkAndAddRow_Value(idx) {
         const isLast = idx === tempListData.length - 1;
         const hasContent = tempListData[idx].name !== "" || tempListData[idx].val !== "";
-        
         if (isLast && hasContent) {
             tempListData.push({name: "", val: ""});
             renderModalItems();
-            
-            // 自動聚焦到新行的Name
             const inputs = document.querySelectorAll('.modal-table tr');
             const lastRowInputs = inputs[inputs.length - 1].querySelectorAll('input');
             lastRowInputs[0].focus(); 
-        }
-        else{
-            // 自動聚焦到新行的Name
+        } else {
             const inputs = document.querySelectorAll('.modal-table tr');
             const lastRowInputs = inputs[inputs.length - 1].querySelectorAll('input');
             lastRowInputs[0].focus(); 
-        }
-    }
-
-    function updateTempItem(idx, field, value) {
-        tempListData[idx][field] = value;
-        const isLast = idx === tempListData.length - 1;
-        const hasContent = tempListData[idx].name !== "" || tempListData[idx].val !== "";
-        if (isLast && hasContent) {
-            tempListData.push({name: "", val: ""});
-            renderModalItems();
-            const inputs = document.querySelectorAll(`.modal-table tr:nth-child(${idx+1}) input`);
-            const target = field === 'name' ? inputs[0] : inputs[1];
-            target.focus();
-            const len = target.value.length;
-            target.setSelectionRange(len, len);
         }
     }
 
@@ -241,14 +444,17 @@
         const cleaned = tempListData.filter((item, i) => 
             item.name !== "" || item.val !== "" || i === tempListData.length - 1
         );
-        monthlyData[currentEditing.mIdx][currentEditing.type] = cleaned;
+        const currentData = getCurrentTagData();
+        currentData[currentEditing.mIdx][currentEditing.type] = cleaned;
         calculateTotals();
         closeModal();
     }
 
     function calculateTotals() {
+        const currentData = getCurrentTagData();
         let dSumTotal = 0, pSumTotal = 0;
-        monthlyData.forEach((month, i) => {
+
+        currentData.forEach((month, i) => {
             const dSum = month.divItems.reduce((a, b) => a + (parseFloat(b.val) || 0), 0);
             const pSum = month.profItems.reduce((a, b) => a + (parseFloat(b.val) || 0), 0);
             document.getElementById(`display-${i}-div`).innerText = dSum.toLocaleString();
@@ -256,6 +462,7 @@
             document.getElementById(`sub-${i}`).innerText = (dSum + pSum).toLocaleString();
             dSumTotal += dSum; pSumTotal += pSum;
         });
+
         document.getElementById('t-div').innerText = dSumTotal.toLocaleString();
         document.getElementById('t-prof').innerText = pSumTotal.toLocaleString();
         document.getElementById('t-all').innerText = (dSumTotal + pSumTotal).toLocaleString();
@@ -264,20 +471,16 @@
         document.getElementById('avg-all').innerText = Math.floor((dSumTotal + pSumTotal)/12).toLocaleString();
     }
 
-    // --- 優化後的長按功能 ---
     function handleLongPress(id, action) {
         let t;
         const el = document.getElementById(id);
         if(!el) return;
 
         const start = (e) => {
-            // 排除非左鍵點擊
             if(e.type === 'mousedown' && e.button !== 0) return;
-            
-            el.classList.add('is-pressing'); // 顯示進度條
+            el.classList.add('is-pressing');
             t = setTimeout(() => {
                 el.classList.remove('is-pressing');
-                // 儲存按鈕特有的成功動畫
                 if(id === 'saveBtn') {
                     el.classList.add('success-anim');
                     setTimeout(() => el.classList.remove('success-anim'), 600);
@@ -288,34 +491,46 @@
 
         const stop = () => {
             clearTimeout(t);
-            el.classList.remove('is-pressing'); // 移除進度條
+            el.classList.remove('is-pressing');
         };
 
         el.addEventListener('touchstart', start, {passive: true});
         el.addEventListener('touchend', stop);
         el.addEventListener('mousedown', start);
         el.addEventListener('mouseup', stop);
-        el.addEventListener('mouseleave', stop); // 滑鼠移開也要取消
+        el.addEventListener('mouseleave', stop);
     }
 
+    function saveDataToLocalStorage() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(new_data));
+    }
+
+    // 1. 儲存按鈕
     handleLongPress('saveBtn', () => {
-        localStorage.setItem('stock_data', JSON.stringify(monthlyData));
-        alert('✅ 資料已儲存');
+        saveDataToLocalStorage();
+        alert('✅ 所有資料已儲存');
     });
 
+    // 2. 清空當前頁面與 Tag
+    handleLongPress('clearPageBtn', () => {
+        const activeTag = new_data.information.activeTag;
+        if(confirm(`確定刪除【${activeTag}】Tag 及其所有資料？`)) {
+            deleteCurrentTag(activeTag);
+        }
+    });
+
+    // 3. 清空全部資料與 LocalStorage (重新整理網頁)
     handleLongPress('clearBtn', () => {
-        if(confirm('確定清空所有資料？')) {
-            localStorage.removeItem('stock_data');
+        if(confirm('確定要清空「所有分頁」與 LocalStorage 資料嗎？此動作無法復原！')) {
+            localStorage.removeItem(STORAGE_KEY);
             location.reload();
         }
     });
 
     window.onload = () => {
-        const saved = localStorage.getItem('stock_data');
-        if (saved) {
-            monthlyData = JSON.parse(saved);
-            calculateTotals();
-        }
+        loadAndMigrateData();
+        renderTabs();
+        calculateTotals();
     };
 </script>
 </body>
