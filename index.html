@@ -203,10 +203,10 @@
     let new_data = {
         information: { 
             version: "v2",
-            activeTag: "預設帳戶"
+            activeTag: "預設頁面"
         },
         data: {
-            "預設帳戶": createEmptyMonthlyData()
+            "預設頁面": createEmptyMonthlyData()
         }
     };
 
@@ -227,7 +227,7 @@
 
     // 取得當前 Active Tag 的資料陣列
     function getCurrentTagData() {
-        const activeTag = new_data.information.activeTag || '預設帳戶';
+        const activeTag = new_data.information.activeTag || '預設頁面';
         if (!new_data.data[activeTag]) {
             new_data.data[activeTag] = createEmptyMonthlyData();
         }
@@ -245,8 +245,8 @@
             if (Array.isArray(parsed)) {
                 console.log('檢測到舊版資料，自動升級中...');
                 new_data.information.version = "v2";
-                new_data.information.activeTag = "預設帳戶";
-                new_data.data["預設帳戶"] = parsed;
+                new_data.information.activeTag = "預設頁面";
+                new_data.data["預設頁面"] = parsed;
                 saveDataToLocalStorage();
                 alert('檢測到舊版資料，已轉移成功');
             } 
