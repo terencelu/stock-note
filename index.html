@@ -24,7 +24,43 @@
         }
 
         .container { width: 100%; max-width: 500px; background: var(--card-bg); padding: 15px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); box-sizing: border-box; }
-        h2 { text-align: center; margin: 10px 0; color: #333; }
+        
+        /* 標題與右上角按鈕的排版 */
+        .title-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0 15px 0;
+            position: relative;
+        }
+
+        .title-bar h2 {
+            margin: 0;
+            color: #333;
+            font-size: 1.5rem;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        .nav-test-btn {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .nav-test-btn:hover {
+            opacity: 0.85;
+        }
         
         /* --- 分頁列 (Tabs) 樣式 --- */
         .tabs-container {
@@ -204,7 +240,11 @@
 <body>
 
 <div class="container">
-    <h2 id="yearTitle">年度收益管理</h2>
+    <!-- 包含右側 test 按鈕的標題區 -->
+    <div class="title-bar">
+        <h2 id="yearTitle">年度收益管理</h2>
+        <button class="nav-test-btn" onclick="location.href='stock-realtime-sample.html'">test</button>
+    </div>
     
     <!-- 分頁列 (Tabs) -->
     <div class="tabs-container" id="tabsContainer"></div>
@@ -603,7 +643,6 @@
 
         calculateTotals();
         closeBatchModal();
-        // alert(`已同步新增至 ${selectedMonths.length} 個月份！`);
     }
 
     /* --- 計算總計 --- */
