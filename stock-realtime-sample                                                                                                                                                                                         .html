@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台股即時股價追蹤</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #f4f6f9;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+      margin: 0;
+    }
+    .card {
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 420px;
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+      text-align: center;
+    }
+    .quick-btn-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .quick-btn {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #007bff;
+      background: #eef6ff;
+      color: #007bff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .quick-btn:hover {
+      background: #007bff;
+      color: #fff;
+    }
+    .search-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    button.search-btn {
+      padding: 10px 16px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button.search-btn:hover {
+      background-color: #218838;
+    }
+    .stock-info {
+      border-top: 1px solid #eee;
+      padding-top: 16px;
+      display: none;
+    }
+    .stock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .stock-name {
+      font-size: 20px;
+      font-weight: bold;
+      color: #222;
+    }
+    .stock-price {
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .price-up { color: #d9534f; }   /* 台灣股市：漲為紅 */
+    .price-down { color: #5cb85c; } /* 台灣股市：跌為綠 */
+    .price-flat { color: #6c757d; }
+    
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 14px;
+      color: #555;
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .loading, .error {
+      text-align: center;
+      padding: 12px;
+      display: none;
+    }
+    .error { color: #d9534f; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>台股即時追蹤</h2>
+  
+  <!-- 熱門股票快速按鈕 -->
+  <div class="quick-btn-group">
+    <button class="quick-btn" onclick="fetchStock('2330')">台積電</button>
+    <button class="quick-btn" onclick="fetchStock('2308')">台達電</button>
+    <button class="quick-btn" onclick="fetchStock('2603')">長榮</button>
+  </div>
+
+  <!-- 股票搜尋框 -->
+  <div class="search-box">
+    <input type="text" id="symbolInput" placeholder="輸入股票代碼 (例: 2454)" />
+    <button class="search-btn" onclick="searchCustomStock()">查詢</button>
+  </div>
+
+  <div id="loading" class="loading">資料讀取中...</div>
+  <div id="error" class="error"></div>
+
+  <!-- 股票結果顯示卡片 -->
+  <div id="stockInfo" class="stock-info">
+    <div class="stock-header">
+      <div>
+        <span id="stockName" class="stock-name">--</span>
+        <span id="stockCode" style="color: #777;">(--)</span>
+      </div>
+      <div id="stockPrice" class="stock-price">--</div>
+    </div>
+
+    <div class="detail-grid">
+      <div>昨收：<span id="yesterdayClose">--</span></div>
+      <div>開盤：<span id="openPrice">--</span></div>
+      <div>最高：<span id="highPrice">--</span></div>
+      <div>最低：<span id="lowPrice">--</span></div>
+      <div>成交量：<span id="volume">--</span> 張</div>
+      <div>時間：<span id="updateTime">--</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 提示：若前後端分開託管，請將 API_BASE 改為 Render 網址 (例如 'https://xxx.onrender.com')
+  // 若使用方案 B (同一個 Node.js 託管靜態頁面)，留空字串 '' 即可
+  const API_BASE = 'https://stock-note-vjok.onrender.com';
+
+  async function fetchStock(symbol) {
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const stockInfoEl = document.getElementById('stockInfo');
+
+    loadingEl.style.display = 'block';
+    errorEl.style.display = 'none';
+    stockInfoEl.style.display = 'none';
+
+    try {
+      const response = await fetch(`${API_BASE}/api/stock/${symbol}`);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || '找不到股票資料');
+      }
+
+      const data = result.data;
+      
+      // 填入資料
+      document.getElementById('stockName').textContent = data.name;
+      document.getElementById('stockCode').textContent = data.code;
+      
+      const price = parseFloat(data.currentPrice) || 0;
+      const yesterday = parseFloat(data.yesterdayClose) || 0;
+      const priceEl = document.getElementById('stockPrice');
+      priceEl.textContent = price;
+
+      // 判斷漲跌顏色（紅漲綠跌）
+      priceEl.className = 'stock-price ' + (price > yesterday ? 'price-up' : price < yesterday ? 'price-down' : 'price-flat');
+
+      document.getElementById('yesterdayClose').textContent = data.yesterdayClose || '--';
+      document.getElementById('openPrice').textContent = data.openPrice || '--';
+      document.getElementById('highPrice').textContent = data.highPrice || '--';
+      document.getElementById('lowPrice').textContent = data.lowPrice || '--';
+      document.getElementById('volume').textContent = data.volume || '--';
+      document.getElementById('updateTime').textContent = data.time || '--';
+
+      stockInfoEl.style.display = 'block';
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+    } finally {
+      loadingEl.style.display = 'none';
+    }
+  }
+
+  function searchCustomStock() {
+    const symbol = document.getElementById('symbolInput').value.trim();
+    if (symbol) {
+      fetchStock(symbol);
+    }
+  }
+
+  // 預設載入台積電
+  fetchStock('2330');
+</script>
+
+</body>
+</html>
